@@ -1,10 +1,10 @@
 use leptos::{
-    ev::{click, keydown, pause, play, timeupdate},
+    ev::{click, keydown, mouseleave, mousemove, pause, play, progress, timeupdate},
     html::{Div, Video},
     prelude::*,
 };
 use leptos_use::{use_document, use_event_listener};
-use web_sys::{DomRect, Event, HtmlDivElement, HtmlVideoElement};
+use web_sys::{DomRect, Event, HtmlDivElement, HtmlVideoElement, ProgressEvent};
 
 #[component]
 pub fn VideoPlayerControll(
@@ -46,6 +46,10 @@ pub fn VideoPlayerControll(
 fn VideoPlayerControllProgressBar(video_ref: NodeRef<Video>) -> impl IntoView {
     let progress_bar_ref = NodeRef::new();
     let (video_percent, set_video_percent) = signal(0);
+    let (buffered_percent, set_buffered_percent) = signal(0);
+    let (hover_x, set_hover_x) = signal(0.0);
+    let (hover_time, set_hover_time) = signal("00:00".to_string());
+    let (show_preview, set_show_preview) = signal(false);
 
     let seek_video = move |click_x: f64, width: f64| {
         if let Some(video) = video_ref.get_untracked() {
@@ -67,23 +71,98 @@ fn VideoPlayerControllProgressBar(video_ref: NodeRef<Video>) -> impl IntoView {
         }
     });
 
-     _ = use_event_listener(progress_bar_ref, click, move |event| {
-        let rect: DomRect = event_target::<HtmlDivElement>(&event).get_bounding_client_rect();
+    _ = use_event_listener(video_ref, progress, move |event: ProgressEvent| {
+        let video: HtmlVideoElement = event_target(&event);
+        let duration = video.duration();
+        if duration > 0.0 {
+            let buffered = video.buffered();
+            let mut max_buffered: f64 = 0.0;
+
+            for i in 0..buffered.length() {
+                let end = buffered.end(i).unwrap_or(0.0);
+                if end > max_buffered {
+                    max_buffered = end;
+                }
+            } 
+
+            let percent = (max_buffered / duration) * 100.0;
+            set_buffered_percent((percent) as u32);
+        }
+    });
+
+    _ = use_event_listener(progress_bar_ref, click, move |event| {
+        let progress_bar: HtmlDivElement = progress_bar_ref
+            .get_untracked()
+            .expect("DOM element not found");
+        let rect: DomRect = progress_bar.get_bounding_client_rect();
         let click_x = event.client_x() as f64 - rect.left();
         let width = rect.width();
         seek_video(click_x, width);
     });
 
+    _ = use_event_listener(progress_bar_ref, mousemove, move |event| {
+        let progress_bar: HtmlDivElement = progress_bar_ref
+            .get_untracked()
+            .expect("DOM element not found");
+        let rect: DomRect = progress_bar.get_bounding_client_rect();
+        let hover_x = (event.client_x() as f64 - rect.left()).clamp(0.0, rect.width());
+        set_hover_x(hover_x);
+
+        if let Some(video) = video_ref.get_untracked() {
+            let duration = video.duration();
+            let hover_time_sec = (hover_x / rect.width()) * duration;
+            let minutes = (hover_time_sec / 60.0).floor() as u32;
+            let seconds = (hover_time_sec % 60.0).floor() as u32;
+            set_hover_time(format!("{:02}:{:02}", minutes, seconds));
+        }
+        set_show_preview(true);
+    });
+
+    _ = use_event_listener(progress_bar_ref, mouseleave, move |_| {
+        set_show_preview(false);
+    });
+
     view! {
-      <div
-        node_ref=progress_bar_ref
-        class="relative w-full h-1 bg-gray-600 cursor-pointer"
-      >
-          <div
-            class="absolute top-0 left-0 h-full bg-indigo-700"
-            style={move || format!("width: {}%", video_percent())}
-          />
-      </div>
+        <div node_ref=progress_bar_ref class="relative w-full h-6 bg-transparent cursor-pointer">
+            {/* Mouse Hover Preview (Timestamp & Image) */}
+            <Show when=move || show_preview()>
+                <div
+                    class="absolute -top-20 left-0 transform -translate-x-1/2 bg-neutral-800 text-white text-xs px-2 py-1 rounded shadow-md"
+                    style={move || format!("left: {}px;", hover_x())}
+                >
+                     <img
+                        src={move || format!("https://example.com/previews/frame_{}.jpg", hover_time())}
+                        alt="Preview"
+                        class="w-24 h-14 mb-1 rounded"
+                    /> 
+                    {hover_time()}
+                </div>
+            </Show>
+
+            {/* Clickable and Hoverable Area */}
+            <div class="absolute top-0 left-0 w-full h-full bg-transparent"></div>
+
+            {/* Progress Bar */}
+            <div class="absolute top-1/2 left-0 w-full h-1 bg-neutral-600 transform -translate-y-1/2">
+                <div
+                    class="absolute top-0 left-0 h-full bg-neutral-500"
+                    style={move || format!("width: {}%;", buffered_percent())}
+                />
+
+                <div
+                    class="absolute top-0 left-0 h-full bg-indigo-700"
+                    style={move || format!("width: {}%;", video_percent())}
+                />
+            </div>
+
+            {/* Hover Position Indicator | */}
+            <Show when=move || show_preview()>
+                <div
+                    class="absolute top-1/2 w-[2px] h-4 bg-white transform -translate-y-1/2"
+                    style={move || format!("left: {}px;", hover_x())}
+                />
+            </Show>
+        </div>
     }
 }
 

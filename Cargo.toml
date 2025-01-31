@@ -16,7 +16,7 @@ leptos_meta = { version = "0.7.0" }
 leptos_actix = { version = "0.7.0", optional = true }
 leptos_router = { version = "0.7.0", features = ["nightly"] }
 wasm-bindgen = "=0.2.100"
-web-sys = { version = "0.3.77", features = ["MediaSource", "SourceBuffer", "HtmlVideoElement", "MediaSourceReadyState", "Window", "Document", "Element", "DomRect"] }
+web-sys = { version = "0.3.77", features = ["MediaSource", "SourceBuffer", "HtmlVideoElement", "MediaSourceReadyState", "Window", "Document", "Element", "DomRect", "TimeRanges", "HtmlMediaElement"] }
 js-sys = "0.3.77"
 leptos-use = {version = "0.15", default-features = false, features = ["use_event_listener", "use_window"] }
 
