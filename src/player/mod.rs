@@ -1,10 +1,8 @@
 mod stream;
 mod video_player_components;
 
-use leptos::ev::visibilitychange;
 use leptos::prelude::*;
 use leptos::IntoView;
-use leptos_use::use_event_listener;
 use video_player_components::VideoPlayerControll;
 use web_sys::HtmlVideoElement;
 

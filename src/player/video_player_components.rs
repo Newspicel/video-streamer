@@ -44,7 +44,7 @@ pub fn VideoPlayerControll(
 
 #[component]
 fn VideoPlayerControllProgressBar(video_ref: NodeRef<Video>) -> impl IntoView {
-    //let progress_bar_ref = NodeRef::new();
+    let progress_bar_ref = NodeRef::new();
     let (video_percent, set_video_percent) = signal(0);
 
     let seek_video = move |click_x: f64, width: f64| {
@@ -67,16 +67,16 @@ fn VideoPlayerControllProgressBar(video_ref: NodeRef<Video>) -> impl IntoView {
         }
     });
 
-    /* _ = use_event_listener(progress_bar_ref, click, move |event| {
+     _ = use_event_listener(progress_bar_ref, click, move |event| {
         let rect: DomRect = event_target::<HtmlDivElement>(&event).get_bounding_client_rect();
         let click_x = event.client_x() as f64 - rect.left();
         let width = rect.width();
         seek_video(click_x, width);
-    }); */
+    });
 
     view! {
       <div
-        //node_ref=progress_bar_ref
+        node_ref=progress_bar_ref
         class="relative w-full h-1 bg-gray-600 cursor-pointer"
       >
           <div
