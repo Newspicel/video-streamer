@@ -1,10 +1,10 @@
 use leptos::{
-    html::{video, Div, Video},
+    ev::{click, keydown, pause, play, timeupdate},
+    html::{Div, Video},
     prelude::*,
-    tachys::html::node_ref::NodeRefContainer,
 };
-use wasm_bindgen::{prelude::Closure, JsCast};
-use web_sys::{HtmlDivElement, HtmlVideoElement};
+use leptos_use::{use_document, use_event_listener};
+use web_sys::{DomRect, Event, HtmlDivElement, HtmlVideoElement};
 
 #[component]
 pub fn VideoPlayerControll(
@@ -44,43 +44,55 @@ pub fn VideoPlayerControll(
 
 #[component]
 fn VideoPlayerControllProgressBar(video_ref: NodeRef<Video>) -> impl IntoView {
+    //let progress_bar_ref = NodeRef::new();
     let (video_percent, set_video_percent) = signal(0);
 
-    let calculate = move || {
-        let video_opt = video_ref.get_untracked();
-        if video_opt.is_none() {
-            set_video_percent(0);
-        } else {
-            let video = video_opt.unwrap();
+    let seek_video = move |click_x: f64, width: f64| {
+        if let Some(video) = video_ref.get_untracked() {
             let duration = video.duration();
-            let current_time = video.current_time();
-            set_video_percent((current_time / duration * 100.0) as u32);
+            let new_time = (click_x / width) * duration;
+            video.set_current_time(new_time);
         }
     };
 
-    video_ref.on_load(move |video| {
-        calculate();
-
-        let closeure = Closure::wrap(Box::new(calculate) as Box<dyn Fn()>);
-        video.add_event_listener_with_callback("timeupdate", closeure.as_ref().unchecked_ref()).expect("Failed to add event listener");
-        closeure.forget();
+    _ = use_event_listener(video_ref, timeupdate, move |event: Event| {
+        let video: HtmlVideoElement = event_target(&event);
+        let duration = video.duration();
+        let current_time = video.current_time();
+        if duration > 0.0 {
+            let percent = (current_time / duration) * 100.0;
+            set_video_percent(percent as u32);
+        } else {
+            set_video_percent(0);
+        }
     });
 
+    /* _ = use_event_listener(progress_bar_ref, click, move |event| {
+        let rect: DomRect = event_target::<HtmlDivElement>(&event).get_bounding_client_rect();
+        let click_x = event.client_x() as f64 - rect.left();
+        let width = rect.width();
+        seek_video(click_x, width);
+    }); */
+
     view! {
-      <div class="relative w-full h-1 bg-gray-600">
-          <div class="absolute top-0 left-0 h-full bg-indigo-700" style={move || format!("width: {}%", video_percent())}></div>
+      <div
+        //node_ref=progress_bar_ref
+        class="relative w-full h-1 bg-gray-600 cursor-pointer"
+      >
+          <div
+            class="absolute top-0 left-0 h-full bg-indigo-700"
+            style={move || format!("width: {}%", video_percent())}
+          />
       </div>
     }
 }
 
 #[component]
-fn VideoPlayerControllPlay(
-    video_ref: NodeRef<Video>,
-) -> impl IntoView {
+fn VideoPlayerControllPlay(video_ref: NodeRef<Video>) -> impl IntoView {
     let (is_playing, set_playing) = signal(false);
 
     let video_play = move || {
-        let video: HtmlVideoElement = video_ref.get().unwrap();
+        let video: HtmlVideoElement = video_ref.get().expect("Failed to get video element");
 
         if video.paused() {
             _ = video.play().expect("Failed to play video");
@@ -91,27 +103,17 @@ fn VideoPlayerControllPlay(
         }
     };
 
-    video_ref.on_load(move |video| {
-        let video_clone = video.clone();
+    let set_button_state = move |event| {
+        set_playing(!event_target::<web_sys::HtmlVideoElement>(&event).paused());
+    };
 
-        let closeure = Closure::wrap(Box::new(move || {
-            set_playing(!video_clone.paused());
-        }) as Box<dyn Fn()>);
+    _ = use_event_listener(video_ref, play, set_button_state);
+    _ = use_event_listener(video_ref, pause, set_button_state);
 
-        video.add_event_listener_with_callback("play", closeure.as_ref().unchecked_ref()).expect("Failed to add event listener");
-        video.add_event_listener_with_callback("pause", closeure.as_ref().unchecked_ref()).expect("Failed to add event listener");
-        closeure.forget();
-    });
-
-    video_ref.on_load(move |_| {
-        let closeure: Closure<dyn Fn(_)> = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == " " {
-                video_play();
-            }
-        }) as Box<dyn Fn(_)>);
-
-        document().add_event_listener_with_callback("keydown", closeure.as_ref().unchecked_ref()).expect("Failed to add event listener");
-        closeure.forget();
+    _ = use_event_listener(use_document(), keydown, move |event| {
+        if event.key() == " " {
+            video_play();
+        }
     });
 
     view! {
@@ -138,15 +140,10 @@ fn VideoPlayerControllBackward(video_ref: NodeRef<Video>) -> impl IntoView {
         video.set_current_time(new_time);
     };
 
-    video_ref.on_load(move |_| {
-        let closeure: Closure<dyn Fn(_)> = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "ArrowLeft" {
-                action();
-            }
-        }) as Box<dyn Fn(_)>);
-
-        document().add_event_listener_with_callback("keydown", closeure.as_ref().unchecked_ref()).expect("Failed to add event listener");
-        closeure.forget();
+    _ = use_event_listener(use_document(), keydown, move |event| {
+        if event.key() == "ArrowLeft" {
+            action();
+        }
     });
 
     view! {
@@ -167,15 +164,10 @@ fn VideoPlayerControllForward(video_ref: NodeRef<Video>) -> impl IntoView {
         video.set_current_time(new_time);
     };
 
-    video_ref.on_load(move |_| {
-        let closeure: Closure<dyn Fn(_)> = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "ArrowRight" {
-                action();
-            }
-        }) as Box<dyn Fn(_)>);
-
-        document().add_event_listener_with_callback("keydown", closeure.as_ref().unchecked_ref()).expect("Failed to add event listener");
-        closeure.forget();
+    _ = use_event_listener(use_document(), keydown, move |event| {
+        if event.key() == "ArrowRight" {
+            action();
+        }
     });
 
     view! {
@@ -197,15 +189,10 @@ fn VideoPlayerControllAudio(video_ref: NodeRef<Video>) -> impl IntoView {
         set_mute(video.muted());
     };
 
-    video_ref.on_load(move |_| {
-        let closeure: Closure<dyn Fn(_)> = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "M" || event.key() == "m" {
-                mute();
-            }
-        }) as Box<dyn Fn(_)>);
-
-        document().add_event_listener_with_callback("keydown", closeure.as_ref().unchecked_ref()).expect("Failed to add event listener");
-        closeure.forget();
+    _ = use_event_listener(use_document(), keydown, move |event| {
+        if event.key() == "M" || event.key() == "m" {
+            mute();
+        }
     });
 
     view! {
