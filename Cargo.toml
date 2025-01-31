@@ -10,15 +10,15 @@ crate-type = ["cdylib", "rlib"]
 actix-files = { version = "0.6", optional = true }
 actix-web = { version = "4", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
-http = { version = "1.2.0", optional = true }
-leptos = { version = "0.7", features = ["nightly"] }
-leptos_meta = { version = "0.7" }
-leptos_actix = { version = "0.7", optional = true }
-leptos_router = { version = "0.7", features = ["nightly"] }
+http = { version = "1.0.0", optional = true }
+leptos = { version = "0.7.0", features = ["nightly"] }
+leptos_meta = { version = "0.7.0" }
+leptos_actix = { version = "0.7.0", optional = true }
+leptos_router = { version = "0.7.0", features = ["nightly"] }
 wasm-bindgen = "=0.2.100"
 web-sys = { version = "0.3.77", features = ["MediaSource", "SourceBuffer", "HtmlVideoElement", "MediaSourceReadyState", "Window", "Document", "Element", "DomRect"] }
 js-sys = "0.3.77"
-leptos-use = {version = "0.15", features = ["use_event_listener", "use_window"] }
+leptos-use = {version = "0.15", default-features = false, features = ["use_event_listener", "use_window"] }
 
 [features]
 csr = ["leptos/csr"]

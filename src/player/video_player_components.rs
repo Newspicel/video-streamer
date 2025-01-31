@@ -276,6 +276,12 @@ fn VideoPlayerControllFullScreen(container_ref: NodeRef<Div>) -> impl IntoView {
         }
     };
 
+    _ = use_event_listener(use_document(), keydown, move |event| {
+        if event.key() == "f" || event.key() == "F" {
+            toggle_fullscreen();
+        }
+    });
+
     view! {
       <IconButton on_click=toggle_fullscreen>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
@@ -296,9 +302,11 @@ pub fn IconButton<F>(children: ChildrenFn, on_click: F) -> impl IntoView
 where
     F: Fn() + 'static,
 {
+    let button_ref = NodeRef::new();
     view! {
-        <button class="p-2 text-neutral-200 rounded-full hover:bg-neutral-800 focus:outline-none" on:click=move |_| on_click()>
-            {children()}
-        </button>
+        <button node_ref=button_ref class="p-2 text-neutral-200 rounded-full hover:bg-neutral-800 focus:outline-none" on:click=move |_| {
+          on_click();
+          _ = button_ref.get_untracked().expect("Failed to get button element").blur();
+        }> {children()} </button>
     }
 }
