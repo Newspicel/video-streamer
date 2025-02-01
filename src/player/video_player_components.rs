@@ -11,34 +11,74 @@ pub fn VideoPlayerControll(
     container_ref: NodeRef<Div>,
     video_ref: NodeRef<Video>,
 ) -> impl IntoView {
+    let (show_controls, set_show_controls) = signal(true);
+    let last_mouse_move = ::new(None::<f64>);
+
+    // Function to show controls and reset the timer
+    let reset_timer = move || {
+        set_show_controls(true);
+        last_mouse_move.set(Some(js_sys::Date::now()));
+
+        // Start a timeout to hide controls after 3 seconds
+        let hide_controls = set_timeout(
+            move || {
+                let now = js_sys::Date::now();
+                if let Some(last_move) = last_mouse_move.get() {
+                    if now - last_move > 3000.0 {
+                        set_show_controls(false);
+                    }
+                }
+            },
+            3000,
+        );
+
+        // Prevent race conditions
+        hide_controls.cancel();
+        hide_controls.run();
+    };
+
+    // Listen for mouse movement
+    _ = use_event_listener(use_document(), mousemove, move |_| {
+        reset_timer();
+    });
+
+    // Ensure controls stay visible when hovered
+    _ = use_event_listener(use_document(), mouseleave, move |_| {
+        set_show_controls(false);
+    });
+
     view! {
-      <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black to-transparent">
-                <div class="flex justify-between items-center mb-2">
-                    <VideoPlayerControllProgressBar video_ref=video_ref/>
-                </div>
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-4">
-                        <VideoPlayerControllPlay video_ref=video_ref/>
-                        <VideoPlayerControllBackward video_ref=video_ref/>
-                        <VideoPlayerControllForward video_ref=video_ref/>
-                        <VideoPlayerControllAudio video_ref=video_ref/>
-                    </div>
+      <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black to-transparent 
+                  transition-opacity duration-300 ease-in-out"
+           class:opacity-100=move || show_controls()
+           class:opacity-0=move || !show_controls()
+      >
+          <div class="flex justify-between items-center mb-2">
+              <VideoPlayerControllProgressBar video_ref=video_ref/>
+          </div>
+          <div class="flex justify-between items-center">
+              <div class="flex items-center gap-4">
+                  <VideoPlayerControllPlay video_ref=video_ref/>
+                  <VideoPlayerControllBackward video_ref=video_ref/>
+                  <VideoPlayerControllForward video_ref=video_ref/>
+                  <VideoPlayerControllAudio video_ref=video_ref/>
+              </div>
 
-                    {/* Title and Episode Info */}
-                    <div class="text-sm text-center">
-                        <p class="font-bold text-neutral-200">"The Night Agent"</p>
-                        <p class="text-gray-400">"Flg. 1 Anrufverfolgung"</p>
-                    </div>
+              {/* Title and Episode Info - Centered */}
+              <div class="absolute left-1/2 bottom-4 transform -translate-x-1/2 text-sm text-center">
+                  <p class="font-bold text-neutral-200">"The Night Agent"</p>
+                  <p class="text-gray-400">"Flg. 1 Anrufverfolgung"</p>
+              </div>
 
-                    {/* Right Controls */}
-                    <div class="flex items-center gap-4">
-                        <VideoPlayerControllInfo video_ref=video_ref/>
-                        <VideoPlayerControllSubtitle video_ref=video_ref/>
-                        <VideoPlayerControllSpeed video_ref=video_ref/>
-                        <VideoPlayerControllFullScreen container_ref=container_ref/>
-                    </div>
-                </div>
-            </div>
+              {/* Right Controls */}
+              <div class="flex items-center gap-4">
+                  <VideoPlayerControllInfo video_ref=video_ref/>
+                  <VideoPlayerControllSubtitle video_ref=video_ref/>
+                  <VideoPlayerControllSpeed video_ref=video_ref/>
+                  <VideoPlayerControllFullScreen container_ref=container_ref/>
+              </div>
+          </div>
+      </div>
     }
 }
 
@@ -83,7 +123,7 @@ fn VideoPlayerControllProgressBar(video_ref: NodeRef<Video>) -> impl IntoView {
                 if end > max_buffered {
                     max_buffered = end;
                 }
-            } 
+            }
 
             let percent = (max_buffered / duration) * 100.0;
             set_buffered_percent((percent) as u32);
@@ -134,7 +174,7 @@ fn VideoPlayerControllProgressBar(video_ref: NodeRef<Video>) -> impl IntoView {
                         src={move || format!("https://example.com/previews/frame_{}.jpg", hover_time())}
                         alt="Preview"
                         class="w-24 h-14 mb-1 rounded"
-                    /> 
+                    />
                     {hover_time()}
                 </div>
             </Show>
@@ -193,6 +233,10 @@ fn VideoPlayerControllPlay(video_ref: NodeRef<Video>) -> impl IntoView {
         if event.key() == " " {
             video_play();
         }
+    });
+
+    _ = use_event_listener(video_ref, click, move |_| {
+        video_play();
     });
 
     view! {
@@ -261,11 +305,25 @@ fn VideoPlayerControllForward(video_ref: NodeRef<Video>) -> impl IntoView {
 #[component]
 fn VideoPlayerControllAudio(video_ref: NodeRef<Video>) -> impl IntoView {
     let (is_mute, set_mute) = signal(false);
+    let (volume, set_volume) = signal(100); // Volume in percentage
 
     let mute = move || {
         let video: HtmlVideoElement = video_ref.get_untracked().unwrap();
         video.set_muted(!video.muted());
         set_mute(video.muted());
+    };
+
+    let change_volume = move |new_volume: f64| {
+        let video: HtmlVideoElement = video_ref.get_untracked().unwrap();
+        let normalized_volume = new_volume.clamp(0.0, 1.0);
+        if volume() != normalized_volume as u32 {
+            video.set_volume(normalized_volume);
+            set_volume((normalized_volume * 100.0) as u32);
+            if video.muted() && normalized_volume > 0.0 {
+                video.set_muted(false);
+                set_mute(false);
+            }
+        }
     };
 
     _ = use_event_listener(use_document(), keydown, move |event| {
@@ -275,20 +333,41 @@ fn VideoPlayerControllAudio(video_ref: NodeRef<Video>) -> impl IntoView {
     });
 
     view! {
-      <IconButton on_click=mute>
-          <Show when=move || is_mute() >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
-              <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM17.78 9.22a.75.75 0 1 0-1.06 1.06L18.44 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06l1.72-1.72 1.72 1.72a.75.75 0 1 0 1.06-1.06L20.56 12l1.72-1.72a.75.75 0 1 0-1.06-1.06l-1.72 1.72-1.72-1.72Z" />
-            </svg>
-          </Show>
+        <div class="flex group">
+            {/* Mute Button */}
+            <IconButton on_click=mute>
+                <Show when=move || is_mute()>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
+                        <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM17.78 9.22a.75.75 0 1 0-1.06 1.06L18.44 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06l1.72-1.72 1.72 1.72a.75.75 0 1 0 1.06-1.06L20.56 12l1.72-1.72a.75.75 0 1 0-1.06-1.06l-1.72 1.72-1.72-1.72Z" />
+                    </svg>
+                </Show>
 
-          <Show when=move || !is_mute() >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
-              <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
-              <path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z" />
-            </svg>
-          </Show>
-      </IconButton>
+                <Show when=move || !is_mute()>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">
+                        <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.584 5.106a.75.75 0 0 1 1.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 0 1-1.06-1.06 8.25 8.25 0 0 0 0-11.668.75.75 0 0 1 0-1.06Z" />
+                        <path d="M15.932 7.757a.75.75 0 0 1 1.061 0 6 6 0 0 1 0 8.486.75.75 0 0 1-1.06-1.061 4.5 4.5 0 0 0 0-6.364.75.75 0 0 1 0-1.06Z" />
+                    </svg>
+                </Show>
+            </IconButton>
+
+            {/* Volume Control Slider */}
+            <div class="p-2 w-24 h-2">
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value=move || volume().to_string()
+                        class="w-24 h-2 slider-neutral-800 rounded-lg cursor-pointer accent-indigo-700 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:opacity-100"
+                        on:input=move |event| {
+                            let new_volume = event_target::<web_sys::HtmlInputElement>(&event)
+                                .value()
+                                .parse::<f64>()
+                                .unwrap_or(100.0) / 100.0;
+                            change_volume(new_volume);
+                        }
+                    />
+            </div>
+        </div>
     }
 }
 

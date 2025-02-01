@@ -14,7 +14,7 @@ pub fn VideoPlayer(video_id: String) -> impl IntoView {
 
     let load_video = move |video: HtmlVideoElement| {
         leptos::logging::log!("Load Video: {}", video_id);
-        video.set_src("https://videocdn.cdnpk.net/videos/5d68cbdc-50f0-4e3f-b62c-4747bbc79837/horizontal/previews/videvo_watermarked/large.mp4");
+        video.set_src("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
     };
 
     video_ref.on_load(load_video);
